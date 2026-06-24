@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Game Katak Interaktif - Ekosistem</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@600;800&display=swap');
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            overflow: hidden; /* Prevent scrolling, act like an app */
+            background-color: #e0f8e0;
+            touch-action: manipulation;
+        }
+        
+        .font-heading { font-family: 'Fredoka One', cursive; }
+
+        /* Custom Animations */
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        
+        @keyframes jumpHappy {
+            0% { transform: translate(0, 0) scale(1); }
+            40% { transform: translate(0, -60px) scale(1.1); }
+            60% { transform: translate(0, -60px) scale(1.1) rotate(10deg); }
+            100% { transform: translate(0, -30px) scale(1); } /* Lands on new leaf */
+        }
+        
+        @keyframes fallSad {
+            0% { transform: translateY(0) scale(1); }
+            20% { transform: translateY(-10px) scale(0.9); }
+            100% { transform: translateY(150px) scale(0.5) rotate(180deg); opacity: 0; }
+        }
+
+        @keyframes rainFall {
+            0% { transform: translateY(-10px); }
+            100% { transform: translateY(100vh); }
+        }
+
+        @keyframes ripple {
+            0% { width: 0; height: 0; opacity: 0.8; }
+            100% { width: 100px; height: 30px; opacity: 0; }
+        }
+
+        @keyframes heartPop {
+            0% { transform: scale(0) translateY(0); opacity: 1; }
+            100% { transform: scale(1.5) translateY(-50px); opacity: 0; }
+        }
+
+        @keyframes slideDown {
+            0% { transform: translateY(-100%); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+
+        .animate-float { animation: float 3s ease-in-out infinite; }
+        .animate-jump { animation: jumpHappy 1s forwards ease-in-out; }
+        .animate-fall { animation: fallSad 1.5s forwards ease-in; }
+        .animate-slide-down { animation: slideDown 0.5s ease-out; }
+
+        .rain-drop {
+            position: absolute;
+            width: 2px;
+            height: 15px;
+            background: rgba(255,255,255,0.6);
+            animation: rainFall linear infinite;
+        }
+
+        .ripple-effect {
+            position: absolute;
+            bottom: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 3px solid rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            animation: ripple 1s ease-out;
+        }
+
+        .heart {
+            position: absolute;
+            font-size: 24px;
+            animation: heartPop 1s ease-out forwards;
+        }
+
+        /* Weather states */
+        .weather-sunny { background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%); transition: background 1s; }
+        .weather-cloudy { background: linear-gradient(to bottom, #5A6B7C 0%, #8A9BAE 100%); transition: background 1s; }
+
+        /* Game Elements */
+        .water-layer {
+            background: linear-gradient(to bottom, #4facfe 0%, #00f2fe 100%);
+            opacity: 0.9;
+        }
+        
+        .leaf-btn {
+            background: #4ade80;
+            border-bottom: 5px solid #22c55e;
+            transition: all 0.2s;
+        }
+        .leaf-btn:active, .leaf-btn.clicked {
+            transform: translateY(4px);
+            border-bottom: 1px solid #22c55e;
+        }
+        .leaf-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body>
+
+<div id="app" class="w-full h-screen flex flex-col">
+    <!-- Top Global Bar -->
+    <div class="h-14 bg-green-700 text-white flex items-center justify-between px-4 z-50 shadow-md">
+        <div class="font-heading text-lg md:text-xl truncate">🐸 IPAS: Ekosistem</div>
+        <div class="flex gap-2 md:gap-4">
+            <button onclick="toggleAudio()" id="btn-audio" class="p-2 bg-green-600 rounded-full hover:bg-green-500" title="BGM On/Off">🔊</button>
+            <button onclick="toggleFullScreen()" class="p-2 bg-green-600 rounded-full hover:bg-green-500" title="Full Screen">🔲</button>
+            <button onclick="goHome()" class="p-2 bg-red-500 rounded-full hover:bg-red-400" title="Ke Menu Utama">🏠</button>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div id="main-container" class="flex-1 w-full h-full relative overflow-hidden flex flex-col md:flex-row">
+        <!-- Renders dynamically -->
+    </div>
+</div>
+
+<script>
+    // --- DATA SOAL ---
+    const QUESTIONS = [
+        { q: "Semua makhluk hidup dan benda tak hidup yang saling berinteraksi disebut ....", opts: ["A. Populasi", "B. Komunitas", "C. Ekosistem", "D. Habitat"], ans: 2, msg: "Hebat! Katakmu menemukan ekosistem yang sehat." },
+        { q: "Dalam rantai makanan: Rumput → Kelinci → Ular → Elang. Kelinci berperan sebagai ....", opts: ["A. Produsen", "B. Konsumen I", "C. Konsumen II", "D. Pengurai"], ans: 1, msg: "Lompatan super!" },
+        { q: "Sumber energi utama bagi kehidupan di bumi adalah ....", opts: ["A. Air", "B. Angin", "C. Matahari", "D. Tanah"], ans: 2, msg: "Katak memperoleh energi matahari!" },
+        { q: "Makhluk hidup yang dapat membuat makanan sendiri disebut ....", opts: ["A. Konsumen", "B. Pengurai", "C. Produsen", "D. Predator"], ans: 2, msg: "Katak mendapatkan daun energi." },
+        { q: "Berikut yang termasuk upaya menjaga lingkungan adalah ....", opts: ["A. Membuang sampah ke sungai", "B. Menebang pohon sembarangan", "C. Membakar sampah plastik", "D. Menanam pohon"], ans: 3, msg: "Katak menanam bibit pohon!" },
+        { q: "Hewan yang memakan tumbuhan disebut ....", opts: ["A. Karnivora", "B. Herbivora", "C. Omnivora", "D. Predator"], ans: 1, msg: "Katak bertemu ulat pemakan daun." },
+        { q: "Air hujan yang turun ke bumi merupakan bagian dari ....", opts: ["A. Daur hidup", "B. Daur air", "C. Daur makanan", "D. Daur energi"], ans: 1, msg: "Katak mendapat percikan air segar." },
+        { q: "Jika jumlah ular berkurang dalam rantai makanan, kemungkinan yang terjadi adalah ....", opts: ["A. Kelinci bertambah", "B. Kelinci berkurang", "C. Rumput habis", "D. Elang bertambah"], ans: 0, msg: "Lompatan cerdas!" },
+        { q: "Salah satu penyebab pemanasan global adalah ....", opts: ["A. Menanam pohon", "B. Menghemat listrik", "C. Emisi kendaraan bermotor", "D. Mendaur ulang sampah"], ans: 2, msg: "Katak berhasil menghindari daerah panas." },
+        { q: "Organisme yang bertugas menguraikan sisa makhluk hidup adalah ....", opts: ["A. Produsen", "B. Konsumen", "C. Predator", "D. Pengurai"], ans: 3, msg: "Katak mencapai kolam kehidupan!" }
+    ];
+
+    // --- GAME STATE ---
+    let gameState = {
+        mode: '', // 'solo', 'duel', 'triple'
+        players: [],
+        isPlaying: false
+    };
+
+    // --- AUDIO SYSTEM (Web Audio API) ---
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx;
+    let bgmOscillator;
+    let bgmGain;
+    let isAudioEnabled = false;
+
+    function initAudio() {
+        if (!audioCtx) audioCtx = new AudioContext();
+    }
+
+    function toggleAudio() {
+        initAudio();
+        isAudioEnabled = !isAudioEnabled;
+        const btn = document.getElementById('btn-audio');
+        if (isAudioEnabled) {
+            btn.innerHTML = '🔊';
+            btn.classList.replace('bg-gray-400', 'bg-green-600');
+            if (gameState.isPlaying) playBGM();
+        } else {
+            btn.innerHTML = '🔇';
+            btn.classList.replace('bg-green-600', 'bg-gray-400');
+            stopBGM();
+        }
+    }
+
+    function playBGM() {
+        if (!isAudioEnabled) return;
+        stopBGM();
+        bgmGain = audioCtx.createGain();
+        bgmGain.gain.value = 0.05;
+        bgmGain.connect(audioCtx.destination);
+        
+        bgmOscillator = audioCtx.createOscillator();
+        bgmOscillator.type = 'triangle';
+        bgmOscillator.connect(bgmGain);
+        bgmOscillator.start();
+        
+        // Simple melody loop
+        const notes = [261.63, 329.63, 392.00, 523.25];
+        let i = 0;
+        setInterval(() => {
+            if(!bgmOscillator) return;
+            bgmOscillator.frequency.setValueAtTime(notes[i % notes.length], audioCtx.currentTime);
+            i++;
+        }, 500);
+    }
+
+    function stopBGM() {
+        if (bgmOscillator) {
+            bgmOscillator.stop();
+            bgmOscillator.disconnect();
+            bgmOscillator = null;
+        }
+    }
+
+    function playSound(type) {
+        if (!isAudioEnabled || !audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+        if (type === 'jump') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        } else if (type === 'fall') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.exponentialRampToValueAtTime(50, now + 0.5);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.5);
+            osc.start(now);
+            osc.stop(now + 0.5);
+        }
+    }
+
+    // --- RENDER MENU ---
+    function renderMenu() {
+        stopBGM();
+        gameState.isPlaying = false;
+        const container = document.getElementById('main-container');
+        container.className = "flex-1 w-full h-full relative overflow-y-auto flex items-center justify-center p-4 hide-scrollbar";
+        container.innerHTML = `
+            <div class="bg-white rounded-3xl shadow-xl p-8 max-w-lg w-full text-center border-4 border-green-400">
+                <div class="text-6xl mb-4 animate-float">🐸</div>
+                <h1 class="font-heading text-3xl md:text-4xl text-green-700 mb-2">Froggy Ecosystem</h1>
+                <p class="text-gray-600 mb-6 font-semibold">Dibuat Oleh: Nunik Handayani</p>
+                
+                <h2 class="text-xl font-bold mb-4 text-gray-800">Pilih Mode Bermain:</h2>
+                <div class="flex flex-col gap-4">
+                    <button onclick="startGame(1)" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 rounded-xl text-xl shadow-[0_5px_0_#16a34a] active:shadow-none active:translate-y-[5px] transition-all">
+                        👤 Solo (1 Pemain)
+                    </button>
+                    <button onclick="startGame(2)" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 rounded-xl text-xl shadow-[0_5px_0_#2563eb] active:shadow-none active:translate-y-[5px] transition-all">
+                        👥 Duel (2 Pemain)
+                    </button>
+                    <button onclick="startGame(3)" class="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-4 rounded-xl text-xl shadow-[0_5px_0_#9333ea] active:shadow-none active:translate-y-[5px] transition-all">
+                        👨‍👩‍👦 Triple (3 Pemain)
+                    </button>
+                </div>
+                <p class="mt-6 text-sm text-gray-500">Mata Pelajaran IPAS Kelas 5 SD</p>
+            </div>
+        `;
+    }
+
+    // --- GAME LOGIC & RENDERING ---
+    function startGame(numPlayers) {
+        initAudio();
+        gameState.mode = numPlayers === 1 ? 'solo' : numPlayers === 2 ? 'duel' : 'triple';
+        gameState.isPlaying = true;
+        gameState.players = [];
+        
+        for (let i = 0; i < numPlayers; i++) {
+            gameState.players.push({
+                id: i + 1,
+                score: 0,
+                level: 0,
+                status: 'idle', // idle, correct, wrong, finished
+                msg: ''
+            });
+        }
+        
+        if (isAudioEnabled) playBGM();
+        renderGameLayout();
+    }
+
+    function renderGameLayout() {
+        const container = document.getElementById('main-container');
+        // Reset and set flex layout based on mode
+        let layoutClass = "flex-1 w-full h-full relative overflow-y-auto hide-scrollbar flex flex-col md:flex-row gap-1 bg-gray-200 p-1";
+        container.className = layoutClass;
+        container.innerHTML = '';
+
+        gameState.players.forEach(p => {
+            const playerDiv = document.createElement('div');
+            playerDiv.id = `player-container-${p.id}`;
+            // Adjust width based on mode
+            playerDiv.className = `relative flex flex-col bg-white overflow-hidden shadow-inner ${gameState.mode === 'solo' ? 'w-full h-full' : 'flex-1 md:h-full min-h-[50vh]'}`;
+            container.appendChild(playerDiv);
+            updatePlayerUI(p.id);
+        });
+    }
+
+    function updatePlayerUI(pid) {
+        const player = gameState.players.find(p => p.id === pid);
+        const container = document.getElementById(`player-container-${pid}`);
+        if (!container) return;
+
+        const isFinished = player.level >= QUESTIONS.length;
+        const qData = isFinished ? null : QUESTIONS[player.level];
+        
+        // Colors for player ID
+        const colors = ['text-green-600', 'text-blue-600', 'text-purple-600'];
+        const pColor = colors[pid-1];
+
+        // Weather/Background state
+        const weatherClass = player.status === 'wrong' ? 'weather-cloudy' : 'weather-sunny';
+
+        let html = `
+            <!-- Player Stats Bar -->
+            <div class="h-12 bg-white flex justify-between items-center px-4 shadow z-10 font-bold border-b-2 border-gray-100">
+                <span class="${pColor} text-lg md:text-xl">Player ${player.id}</span>
+                <div class="flex gap-4">
+                    <span class="text-orange-500">⭐ ${player.score}</span>
+                    <span class="text-gray-600">Lv ${isFinished ? 10 : player.level + 1}</span>
+                </div>
+            </div>
+
+            <!-- Game Viewport -->
+            <div class="flex-1 relative ${weatherClass} flex flex-col overflow-hidden" id="viewport-${pid}">
+                
+                ${player.status === 'wrong' ? createRainHTML() : ''}
+
+                <!-- Feedback Message Overlay -->
+                ${player.status !== 'idle' && !isFinished ? `
+                    <div class="absolute top-1/4 left-1/2 transform -translate-x-1/2 z-30 bg-white/90 px-4 py-2 rounded-xl shadow-lg text-center font-bold text-lg max-w-[80%] animate-slide-down">
+                        ${player.msg}
+                    </div>
+                ` : ''}
+
+                ${!isFinished ? `
+                    <!-- Question Area -->
+                    <div class="z-20 p-4 mt-2 ${player.status !== 'idle' ? 'opacity-50 pointer-events-none' : 'animate-slide-down'}">
+                        <div class="bg-white rounded-2xl p-4 shadow-md text-center border-2 border-green-200">
+                            <h3 class="font-bold text-gray-800 text-sm md:text-base">${qData.q}</h3>
+                        </div>
+                    </div>
+
+                    <!-- Answers (Leaves) -->
+                    <div class="z-20 grid grid-cols-2 gap-2 px-4 pb-4 ${player.status !== 'idle' ? 'opacity-50 pointer-events-none' : ''}">
+                        ${qData.opts.map((opt, idx) => `
+                            <button onclick="handleAnswer(${pid}, ${idx})" class="leaf-btn text-white font-bold p-3 rounded-2xl shadow text-xs md:text-sm flex items-center justify-center min-h-[60px] relative overflow-hidden">
+                                <span class="relative z-10">${opt}</span>
+                                <div class="absolute inset-0 bg-white/20 opacity-0 hover:opacity-100 transition-opacity"></div>
+                            </button>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <!-- FINISHED STATE -->
+                    <div class="z-30 absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                        <div class="bg-white rounded-3xl p-6 text-center shadow-2xl max-w-sm w-full animate-float">
+                            <h2 class="text-3xl mb-2">🏆</h2>
+                            <h3 class="font-heading text-2xl text-green-600 mb-2">SELAMAT!</h3>
+                            <p class="font-bold text-gray-700">Katak berhasil mencapai kolam kehidupan!</p>
+                            <div class="mt-4 text-xl text-orange-500 font-bold">Skor Akhir: ${player.score}</div>
+                            ${gameState.mode !== 'solo' ? `<p class="text-sm text-gray-500 mt-2">Menunggu pemain lain...</p>` : ''}
+                        </div>
+                    </div>
+                `}
+
+                <!-- Frog and Base Leaf -->
+                <div class="absolute bottom-[20%] left-1/2 transform -translate-x-1/2 flex flex-col items-center z-10 w-full" id="frog-area-${pid}">
+                    ${player.status === 'correct' ? '<div class="heart" style="left: 30%;">❤️</div><div class="heart" style="left: 70%; animation-delay: 0.2s;">❤️</div>' : ''}
+                    <div class="text-5xl md:text-6xl transition-transform ${player.status==='correct' ? 'animate-jump' : player.status==='wrong' ? 'animate-fall' : 'animate-float'}">
+                        ${player.status === 'wrong' ? '🐸💧' : player.status === 'correct' ? '🐸❤️' : '🐸'}
+                    </div>
+                    <div class="text-6xl md:text-7xl -mt-4 drop-shadow-lg ${player.status==='wrong' ? 'hidden' : ''}">🌿</div>
+                </div>
+
+                <!-- Water Level -->
+                <div class="water-layer absolute bottom-0 w-full h-[20%] z-20 flex items-end justify-center pb-2">
+                    <div class="w-full h-full opacity-50 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSIyMCI+PHBhdGggZD0iTTAgMTBRMTAgMCAyMCAxMFQ0MCAxMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIi8+PC9zdmc+')] bg-repeat-x"></div>
+                </div>
+                ${player.status === 'wrong' ? '<div class="ripple-effect z-30"></div>' : ''}
+            </div>
+        `;
+
+        container.innerHTML = html;
+    }
+
+    function createRainHTML() {
+        let drops = '';
+        for(let i=0; i<20; i++) {
+            let left = Math.random() * 100;
+            let dur = Math.random() * 0.5 + 0.5;
+            let del = Math.random() * 1;
+            drops += `<div class="rain-drop" style="left: ${left}%; animation-duration: ${dur}s; animation-delay: ${del}s;"></div>`;
+        }
+        return `<div class="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-70">${drops}</div>`;
+    }
+
+    function handleAnswer(pid, selectedIdx) {
+        const player = gameState.players.find(p => p.id === pid);
+        if (player.status !== 'idle') return; // Prevent double click
+
+        const qData = QUESTIONS[player.level];
+        const isCorrect = selectedIdx === qData.ans;
+
+        if (isCorrect) {
+            playSound('jump');
+            player.status = 'correct';
+            player.msg = qData.msg;
+            player.score += 10;
+        } else {
+            playSound('fall');
+            player.status = 'wrong';
+            player.msg = "Oh tidak! Jawaban salah, katak terpeleset!";
+        }
+
+        updatePlayerUI(pid);
+
+        // Wait for animations before next question
+        setTimeout(() => {
+            player.level++;
+            player.status = 'idle';
+            player.msg = '';
+            updatePlayerUI(pid);
+        }, isCorrect ? 2000 : 2500); // Give time for sad fall & rain
+    }
+
+    // --- UTILITIES ---
+    function toggleFullScreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                console.log(`Error attempting to enable fullscreen: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    function goHome() {
+        if (confirm("Kembali ke Menu Utama? Progres game akan hilang.")) {
+            renderMenu();
+        }
+    }
+
+    // Init App
+    window.onload = renderMenu;
+
+</script>
+</body>
+</html>
